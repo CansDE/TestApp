@@ -6,6 +6,8 @@ import org.example.packets.TestPacket;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.SocketOptions;
+import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.SocketChannel;
@@ -24,7 +26,7 @@ public class TestClient {
 
         this.registery = new PacketRegistery();
         try {
-            this.worker = new Worker(registery);
+            this.worker = new Worker(0, registery);
             Executors.newFixedThreadPool(1).execute(this.worker);
             runClient();
         } catch (IOException e) {
@@ -36,14 +38,20 @@ public class TestClient {
         SocketChannel channel = SocketChannel.open();
         channel.connect(new InetSocketAddress(2020));
         channel.configureBlocking(false);
+        channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
         this.worker.registerChannel(channel);
 
+        int i = 0;
+
         while(true) {
-            TestPacket packet = new TestPacket(System.nanoTime());
-            registery.sendPacket(channel, packet);
-
-            registery.sendPacket(channel, new FischPacket("Hallo das ist ein Test"));
-
+            if(i == 0) {
+                TestPacket packet = new TestPacket(System.nanoTime());
+                registery.sendPacket(channel, packet);
+                i = 1;
+            } else {
+                registery.sendPacket(channel, new FischPacket("Hallo das ist ein Test"));
+                i = 0;
+            }
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {

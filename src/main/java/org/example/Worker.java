@@ -18,9 +18,11 @@ public class Worker implements Runnable {
 
     private DirectBuffer directBuffer = new DirectBuffer(256);
     private PacketRegistery packetRegistery;
+    private int id;
 
-    public Worker(PacketRegistery packetRegistery) {
+    public Worker(int id, PacketRegistery packetRegistery) {
         try {
+            this.id = id;
             this.packetRegistery = packetRegistery;
             this.selector = Selector.open();
         } catch (IOException e) {
@@ -32,35 +34,54 @@ public class Worker implements Runnable {
     public void run() {
         while (true) {
             try {
-                int ready = selector.selectNow();
+                int ready = selector.select(500);
                 if (ready == 0) continue;
 
-                for (SelectionKey selectedKey : selector.selectedKeys()) {
-                    if (selectedKey.isReadable()) {
-                        SocketChannel channel = (SocketChannel) selectedKey.channel();
-                        try {
+                Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
 
-                            int buff = directBuffer.read(channel);
-                            if (buff == -1) {
-                                System.out.println("Client disconnected (Read = -1)");
-                                channel.close();
-                                return;
-                            }
-                            packetRegistery.callPacket(channel, directBuffer);
+                while(iterator.hasNext()) {
+                    SelectionKey key = iterator.next();
+                    iterator.remove();
 
-                            directBuffer.clear();
-                        }catch (IOException ex) {
-                            channel.close();
-                            System.out.println("Client disconnected (IOException)");
-                        }
+                    SocketChannel channel = (SocketChannel) key.channel();
+                    if (key.isReadable()) {
+                        handleRead(channel);
                     }
+                    /*
+                    if(key.isWritable()) {
+                        handleWrite(channel);
+                    }
+
+                     */
                 }
 
-                selector.selectedKeys().clear();
             }catch (IOException ex) {
                 ex.printStackTrace();
             }
         }
+
+    }
+
+    private void handleRead(SocketChannel channel) throws IOException {
+
+        try {
+
+            int buff = directBuffer.read(channel);
+            if (buff == -1) {
+                System.out.println("Client disconnected (Read = -1)");
+                channel.close();
+                return;
+            }
+            packetRegistery.callPacket(channel, directBuffer);
+
+            directBuffer.clear();
+        }catch (IOException ex) {
+            channel.close();
+            System.out.println("Client disconnected (IOException)");
+        }
+    }
+
+    private void handleWrite(SocketChannel channel) {
 
     }
 
@@ -70,5 +91,9 @@ public class Worker implements Runnable {
         } catch (ClosedChannelException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public int id() {
+        return id;
     }
 }
