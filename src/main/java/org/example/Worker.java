@@ -1,5 +1,7 @@
 package org.example;
 
+import org.example.packets.PacketRegistery;
+
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
@@ -15,9 +17,11 @@ public class Worker implements Runnable {
     private Selector selector;
 
     private DirectBuffer directBuffer = new DirectBuffer(256);
+    private PacketRegistery packetRegistery;
 
-    public Worker() {
+    public Worker(PacketRegistery packetRegistery) {
         try {
+            this.packetRegistery = packetRegistery;
             this.selector = Selector.open();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -36,23 +40,18 @@ public class Worker implements Runnable {
                         SocketChannel channel = (SocketChannel) selectedKey.channel();
                         try {
 
-                            int buff = channel.read(directBuffer.getRawBuffer());
+                            int buff = directBuffer.read(channel);
                             if (buff == -1) {
-                                System.out.println("Client disconnected");
+                                System.out.println("Client disconnected (Read = -1)");
                                 channel.close();
                                 return;
                             }
-                            if(buff > 0) {
-                                directBuffer.writerIndex += buff;
-                            }
-                            byte id = directBuffer.readByte();
-                            int length = directBuffer.readInt();
-                            long nanos = (System.nanoTime() - directBuffer.readLong());
-                            System.out.println(id +":"+length+":" + nanos +"ns");
+                            packetRegistery.callPacket(channel, directBuffer);
+
                             directBuffer.clear();
                         }catch (IOException ex) {
                             channel.close();
-                            System.out.println("Client disconnected");
+                            System.out.println("Client disconnected (IOException)");
                         }
                     }
                 }

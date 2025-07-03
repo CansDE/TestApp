@@ -1,5 +1,9 @@
 package org.example;
 
+import org.example.packets.FischPacket;
+import org.example.packets.PacketRegistery;
+import org.example.packets.TestPacket;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketOptions;
@@ -12,6 +16,7 @@ import java.util.concurrent.*;
 public class TestServer {
 
     private List<Worker> workerList = new ArrayList<>();
+    private PacketRegistery packetRegistery;
     private ExecutorService executorService = Executors.newFixedThreadPool(2);
 
     public static void main(String[] args) {
@@ -19,13 +24,30 @@ public class TestServer {
     }
 
     public TestServer() {
+        this.packetRegistery = new PacketRegistery();
         runServer(2);
     }
 
     public void runServer(int workers) {
         try {
+
+            packetRegistery.handle(FischPacket.class, (socketChannel, fischPacket) -> {
+                try {
+                    System.out.println(socketChannel.getLocalAddress().toString() + ":"+fischPacket.getString());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            packetRegistery.handle(TestPacket.class, (socketChannel, packet) -> {
+                try {
+                    System.out.println(socketChannel.getRemoteAddress().toString() + ":" + (System.nanoTime() - packet.getTime()));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+
             for (int i = 0; i < workers; i++) {
-                Worker worker = new Worker();
+                Worker worker = new Worker(packetRegistery);
                 workerList.add(worker);
                 executorService.submit(worker);
             }
@@ -64,9 +86,6 @@ public class TestServer {
             acceptorThread.setName("Acceptor-Thread");
             acceptorThread.start();
 
-            while (true) {
-
-            }
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }

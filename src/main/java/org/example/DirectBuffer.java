@@ -1,6 +1,8 @@
 package org.example;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 
 public class DirectBuffer {
@@ -28,6 +30,14 @@ public class DirectBuffer {
             byteBuffer = newByteBuffer;
             newByteBuffer = null;
         }
+    }
+
+    public int read(SocketChannel socketChannel) throws IOException {
+        int buff = socketChannel.read(byteBuffer);
+        if(buff > 0) {
+            writerIndex += buff;
+        }
+        return buff;
     }
 
     public byte readByte() {
