@@ -13,6 +13,7 @@ public class Acceptor implements Runnable{
     private Selector selector;
     private ServerSocketChannel serverSocketChannel;
     private WorkerPool workerPool;
+    private int workerIndex = 0;
 
     public Acceptor(ServerSocketChannel serverSocketChannel, WorkerPool workerPool) {
         try {
@@ -28,13 +29,9 @@ public class Acceptor implements Runnable{
 
     @Override
     public void run() {
-
-        Thread acceptorThread = new Thread(() -> {
-            int workerIndex = 0;
-
             while (true) {
                 try {
-                    int ready = selector.select();
+                    int ready = selector.select(10);
                     if (ready == 0) continue;
 
                     Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
@@ -52,10 +49,6 @@ public class Acceptor implements Runnable{
                     ex.printStackTrace();
                 }
             }
-        });
-        acceptorThread.setDaemon(true);
-        acceptorThread.setName("Acceptor-Thread");
-        acceptorThread.start();
     }
 
     private void handleAccept(SocketChannel channel) throws IOException {
@@ -64,7 +57,6 @@ public class Acceptor implements Runnable{
         System.out.println("Client connected " + channel.getRemoteAddress().toString());
 
         Worker worker = workerPool.nextWorker();
-        System.out.println("worker: " + worker.id());
         worker.registerChannel(channel);
     }
 }

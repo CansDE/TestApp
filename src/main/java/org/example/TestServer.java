@@ -43,7 +43,8 @@ public class TestServer {
             });
             packetRegistery.handle(TestPacket.class, (socketChannel, packet) -> {
                 try {
-                    System.out.println(socketChannel.getRemoteAddress().toString() + ":" + (System.nanoTime() - packet.getTime()));
+                    long time = System.nanoTime() - packet.getTime();
+                    System.out.println(socketChannel.getRemoteAddress().toString() + ":" + (time / 1000) + "μs");
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }

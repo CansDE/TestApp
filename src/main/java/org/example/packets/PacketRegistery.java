@@ -13,11 +13,10 @@ import java.util.function.Consumer;
 
 public class PacketRegistery {
 
-    private Map<Byte, Class<? extends Packet>> packetById = new HashMap<>();
+    private Map<Byte, Constructor<? extends Packet>> packetById = new HashMap<>();
     private Map<Class<? extends Packet>, Byte> idByPacket = new HashMap<>();
 
     private Map<Class<? extends Packet>, List<BiConsumer<SocketChannel, Packet>>> consumers = new HashMap<>();
-
 
     private DirectBuffer sendBuffer = new DirectBuffer(256);
     private DirectBuffer payload = new DirectBuffer(256);
@@ -26,25 +25,30 @@ public class PacketRegistery {
         for(Class<? extends Packet> packetClazz : new Class[]{TestPacket.class, FischPacket.class}) {
             if(packetClazz.isAnnotationPresent(PacketInfo.class)) {
                 byte id = packetClazz.getAnnotation(PacketInfo.class).id();
-                packetById.put(id, packetClazz);
+                try {
+                    packetById.put(id, packetClazz.getConstructor());
+                } catch (NoSuchMethodException e) {
+                    throw new RuntimeException(e);
+                }
                 idByPacket.put(packetClazz, id);
             }
         }
     }
 
     public void callPacket(SocketChannel socketChannel, DirectBuffer directBuffer) {
+        long start = System.nanoTime();
         byte id = directBuffer.readByte();
         int length = directBuffer.readInt();
 
-        Class<? extends Packet> clazz = packetById.get(id);
         try {
-            Packet packet = clazz.getConstructor().newInstance();
+            Packet packet = packetById.get(id).newInstance();
             packet.read(directBuffer);
-
-            for (BiConsumer<SocketChannel, Packet> socketChannelPacketBiConsumer : consumers.get(clazz)) {
+            System.out.println(System.nanoTime()-start);
+            List<BiConsumer<SocketChannel, Packet>> con = consumers.get(packet.getClass());
+            for (BiConsumer<SocketChannel, Packet> socketChannelPacketBiConsumer : con) {
                 socketChannelPacketBiConsumer.accept(socketChannel, packet);
             }
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
 
@@ -72,7 +76,10 @@ public class PacketRegistery {
 
             sendBuffer.clear();
             payload.clear();
+
+            return;
         }
+        System.out.println("Tried to send packet but not connected");
     }
 
     public <T extends Packet> void handle(Class<T> clazz, BiConsumer<SocketChannel, T> biConsumer) {
@@ -81,9 +88,7 @@ public class PacketRegistery {
         consumers.put(clazz, con);
     }
 
-    public Class<?> packetById(Byte id) {
-        return packetById.get(id);
-    }
+
 
     public Byte idByPacket(Class<?> packet) {
         return idByPacket.get(packet);
@@ -93,7 +98,4 @@ public class PacketRegistery {
         return idByPacket;
     }
 
-    public Map<Byte, Class<? extends Packet>> getPacketById() {
-        return packetById;
-    }
 }

@@ -34,7 +34,7 @@ public class Worker implements Runnable {
     public void run() {
         while (true) {
             try {
-                int ready = selector.select(500);
+                int ready = selector.select(10);
                 if (ready == 0) continue;
 
                 Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
@@ -66,14 +66,13 @@ public class Worker implements Runnable {
 
         try {
 
-            int buff = directBuffer.read(channel);
-            if (buff == -1) {
+            int read = directBuffer.read(channel);
+            if (read == -1) {
                 System.out.println("Client disconnected (Read = -1)");
                 channel.close();
                 return;
             }
             packetRegistery.callPacket(channel, directBuffer);
-
             directBuffer.clear();
         }catch (IOException ex) {
             channel.close();
