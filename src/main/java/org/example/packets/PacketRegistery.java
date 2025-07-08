@@ -8,6 +8,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -35,15 +36,10 @@ public class PacketRegistery {
         }
     }
 
-    public void callPacket(SocketChannel socketChannel, DirectBuffer directBuffer) {
-        long start = System.nanoTime();
-        byte id = directBuffer.readByte();
-        int length = directBuffer.readInt();
-
+    public void callPacket(SocketChannel socketChannel, DirectBuffer directBuffer, byte id) {
         try {
             Packet packet = packetById.get(id).newInstance();
             packet.read(directBuffer);
-            System.out.println(System.nanoTime()-start);
             List<BiConsumer<SocketChannel, Packet>> con = consumers.get(packet.getClass());
             for (BiConsumer<SocketChannel, Packet> socketChannelPacketBiConsumer : con) {
                 socketChannelPacketBiConsumer.accept(socketChannel, packet);
@@ -52,34 +48,6 @@ public class PacketRegistery {
             throw new RuntimeException(e);
         }
 
-    }
-
-    public void sendPacket(SocketChannel channel, Packet packet) {
-        if(channel.isConnected()) {
-            sendBuffer.writeByte(idByPacket.get(packet.getClass()));
-
-            packet.write(payload);
-
-            sendBuffer.writeInt(payload.readableBytes());
-            sendBuffer.writeDirectBuffer(payload);
-
-            ByteBuffer buf = sendBuffer.getRawBuffer();
-            buf.position(sendBuffer.readerIndex);
-            buf.limit(sendBuffer.writerIndex);
-
-
-            try {
-                channel.write(buf);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-
-            sendBuffer.clear();
-            payload.clear();
-
-            return;
-        }
-        System.out.println("Tried to send packet but not connected");
     }
 
     public <T extends Packet> void handle(Class<T> clazz, BiConsumer<SocketChannel, T> biConsumer) {

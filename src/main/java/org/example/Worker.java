@@ -3,22 +3,27 @@ package org.example;
 import org.example.packets.PacketRegistery;
 
 import java.io.IOException;
+import java.net.StandardSocketOptions;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class Worker implements Runnable {
 
     private Selector selector;
-
-    private DirectBuffer directBuffer = new DirectBuffer(256);
     private PacketRegistery packetRegistery;
     private int id;
+
+    private Queue<SocketChannel> pendingConnections = new ConcurrentLinkedQueue<>();
+
+    /*
+    TEMP::::
+     */
+    public Connection connection;
+    public boolean connected = false;
 
     public Worker(int id, PacketRegistery packetRegistery) {
         try {
@@ -34,8 +39,7 @@ public class Worker implements Runnable {
     public void run() {
         while (true) {
             try {
-                int ready = selector.select(10);
-                if (ready == 0) continue;
+                int ready = selector.select();
 
                 Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
 
@@ -43,17 +47,16 @@ public class Worker implements Runnable {
                     SelectionKey key = iterator.next();
                     iterator.remove();
 
-                    SocketChannel channel = (SocketChannel) key.channel();
+                    Connection connection = (Connection) key.attachment();
                     if (key.isReadable()) {
-                        handleRead(channel);
-                    }
-                    /*
-                    if(key.isWritable()) {
-                        handleWrite(channel);
+                        connection.doRead();
                     }
 
-                     */
+                    if(key.isWritable()) {
+                        connection.doWrite();
+                    }
                 }
+                registerPendingConnections();
 
             }catch (IOException ex) {
                 ex.printStackTrace();
@@ -62,34 +65,29 @@ public class Worker implements Runnable {
 
     }
 
-    private void handleRead(SocketChannel channel) throws IOException {
 
-        try {
+    public void registerPendingConnections() {
+        while(!pendingConnections.isEmpty()) {
+            SocketChannel channel = pendingConnections.poll();
+            try {
+                channel.configureBlocking(false);
+                channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
+                SelectionKey key = channel.register(selector, SelectionKey.OP_READ);
+                Connection connection = new Connection(channel, key, packetRegistery);
+                key.attach(connection);
 
-            int read = directBuffer.read(channel);
-            if (read == -1) {
-                System.out.println("Client disconnected (Read = -1)");
-                channel.close();
-                return;
+                this.connection = connection;
+                this.connected = true;
+
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
-            packetRegistery.callPacket(channel, directBuffer);
-            directBuffer.clear();
-        }catch (IOException ex) {
-            channel.close();
-            System.out.println("Client disconnected (IOException)");
         }
-    }
-
-    private void handleWrite(SocketChannel channel) {
-
     }
 
     public void registerChannel(SocketChannel channel) {
-        try {
-            channel.register(selector, SelectionKey.OP_READ);
-        } catch (ClosedChannelException e) {
-            throw new RuntimeException(e);
-        }
+        pendingConnections.add(channel);
+        selector.wakeup();
     }
 
     public int id() {

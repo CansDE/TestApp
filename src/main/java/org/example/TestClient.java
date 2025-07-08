@@ -44,13 +44,15 @@ public class TestClient {
         int i = 0;
 
         while(true) {
-            if(i == 0) {
-                TestPacket packet = new TestPacket(System.nanoTime());
-                registery.sendPacket(channel, packet);
-                i = 1;
-            } else {
-                registery.sendPacket(channel, new FischPacket("Hallo das ist ein Test"));
-                i = 0;
+            if(worker.connected) {
+                if (i == 0) {
+                    TestPacket packet = new TestPacket(System.nanoTime());
+                    worker.connection.sendPacket(packet);
+                    i = 1;
+                } else {
+                    worker.connection.sendPacket(new FischPacket("Hallo das ist ein Test"));
+                    i = 0;
+                }
             }
             try {
                 Thread.sleep(500);

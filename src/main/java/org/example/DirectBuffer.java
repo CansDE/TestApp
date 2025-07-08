@@ -128,6 +128,22 @@ public class DirectBuffer {
         return val;
     }
 
+    public byte peekByte(int index) {
+        return byteBuffer.get(index);
+    }
+
+    public int peekInt(int index) {
+        return byteBuffer.getInt(index);
+    }
+
+    public void skipBytes(int value) {
+        readerIndex += value;
+    }
+
+    public boolean isFull() {
+        return readerIndex == writerIndex;
+    }
+
 
     public void clear() {
         readerIndex = 0;

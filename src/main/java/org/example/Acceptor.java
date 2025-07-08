@@ -52,8 +52,6 @@ public class Acceptor implements Runnable{
     }
 
     private void handleAccept(SocketChannel channel) throws IOException {
-        channel.configureBlocking(false);
-        channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
         System.out.println("Client connected " + channel.getRemoteAddress().toString());
 
         Worker worker = workerPool.nextWorker();
